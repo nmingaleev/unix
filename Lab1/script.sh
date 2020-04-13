@@ -33,14 +33,14 @@ mktemp_name=$(mktemp -d -t kekXXX) || error 'Failed to create temp folder'
 
 trap handle_SIGNALS HUP INT QUIT PIPE TERM
 
-cp "$file_name" $mktemp_name || error 'Failed to copy file.'
+cp "$file_name" $mktemp_name || { rm -rf -- "$mktemp_name"; error 'Failed to copy file.'; }
 
 current_path=$(pwd)
 
 cd "$mktemp_name"
 
-g++ -o "$executable_file_name" "$file_name" || error "Failed compiling src file."
+g++ -o "$executable_file_name" "$file_name" || { rm -rf -- "$mktemp_name"; error "Failed compiling src file."; }
 
-cp "$executable_file_name" "$current_path" || error "Failed to copy file"
+cp "$executable_file_name" "$current_path" || { rm -rf -- "$mktemp_name"; error "Failed to copy file"; }
 
 rm -rf -- "$mktemp_name"
