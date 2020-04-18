@@ -39,7 +39,7 @@ current_path=$(pwd)
 
 cd "$mktemp_name"
 
-g++ -o "$executable_file_name" "$file_name" || { rm -rf -- "$mktemp_name"; error "Failed compiling src file."; }
+g++ -std=c++11 -o "$executable_file_name" "$file_name" || { rm -rf -- "$mktemp_name"; error "Failed compiling src file."; }
 
 cp "$executable_file_name" "$current_path" || { rm -rf -- "$mktemp_name"; error "Failed to copy file"; }
 
