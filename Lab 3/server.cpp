@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/signalfd.h>
 #include <netinet/in.h>
 #include <cstdio>
 #include <unistd.h>
@@ -12,12 +13,6 @@
 using namespace std;
 
 // Output server
-
-volatile sig_atomic_t wasSigHup = 0;
-
-void handleSignal(int signum) {
-    wasSigHup = 1;
-}
 
 void error(const char *msg)
 {
@@ -53,21 +48,21 @@ int main(int argc, char *argv[]) {
     set<int> clientSocketSet;
     clientSocketSet.clear();
 
-    struct sigaction act{};
-    memset(&act, 0, sizeof(act));
-    act.sa_handler = handleSignal;
-
     sigset_t mask;
     sigset_t oldMask;
+
+    struct signalfd_siginfo fdsi;
+    ssize_t s;
 
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
 
-    act.sa_mask = mask;
-
-    sigaction(SIGINT, &act, nullptr);
-
     sigprocmask(SIG_BLOCK, &mask, &oldMask);
+
+    int sfd = signalfd(-1, &mask, 0);
+    if (sfd == -1) {
+        error("ERROR signalfd");
+    }
 
     char buffer[256];
 
@@ -75,6 +70,7 @@ int main(int argc, char *argv[]) {
         fd_set readFdSet;
         FD_ZERO(&readFdSet);
         FD_SET(fd, &readFdSet);
+        FD_SET(sfd, &readFdSet);
 
         for (set<int>::iterator it = clientSocketSet.begin(); it != clientSocketSet.end(); it++) {
             FD_SET(*it, &readFdSet);
@@ -90,15 +86,21 @@ int main(int argc, char *argv[]) {
 
         int maxFdId = max(fd, *max_element(clientSocketSet.begin(), clientSocketSet.end()));
 
-        if (pselect(maxFdId+1, &readFdSet, nullptr, nullptr, &timeout, &oldMask) <= 0){
-            if (errno == EINTR) {
-                if (wasSigHup == 1) {
-                    printf("signal caught");
-                    wasSigHup = 0;
+        maxFdId = max(maxFdId, sfd);
+
+        int result = pselect(maxFdId+1, &readFdSet, nullptr, nullptr, &timeout, &mask);
+        if (result > 0) {
+            if (FD_ISSET(sfd, &readFdSet)) {
+                s = read(sfd, &fdsi, sizeof(struct signalfd_siginfo));
+
+                if (fdsi.ssi_signo == SIGINT) {
+                    printf("SIGINT");
+                    continue;
                 }
-            } else {
-                error("pselect error");
             }
+
+        } else {
+            error("pselect error");
         }
 
         if (FD_ISSET(fd, &readFdSet)) {
