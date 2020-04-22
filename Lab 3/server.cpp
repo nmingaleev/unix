@@ -49,7 +49,6 @@ int main(int argc, char *argv[]) {
     clientSocketSet.clear();
 
     sigset_t mask;
-    sigset_t oldMask;
 
     struct signalfd_siginfo fdsi;
     ssize_t s;
@@ -57,7 +56,7 @@ int main(int argc, char *argv[]) {
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
 
-    sigprocmask(SIG_BLOCK, &mask, &oldMask);
+    sigprocmask(SIG_BLOCK, &mask, nullptr);
 
     int sfd = signalfd(-1, &mask, 0);
     if (sfd == -1) {
@@ -88,7 +87,7 @@ int main(int argc, char *argv[]) {
 
         maxFdId = max(maxFdId, sfd);
 
-        int result = pselect(maxFdId+1, &readFdSet, nullptr, nullptr, &timeout, &mask);
+        int result = pselect(maxFdId+1, &readFdSet, nullptr, nullptr, &timeout, nullptr);
         if (result > 0) {
             if (FD_ISSET(sfd, &readFdSet)) {
                 s = read(sfd, &fdsi, sizeof(struct signalfd_siginfo));
